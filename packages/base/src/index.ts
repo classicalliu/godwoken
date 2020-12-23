@@ -13,4 +13,6 @@ export interface DeploymentConfig {
   custodian_lock_dep: CellDep;
   state_validator_lock_dep: CellDep;
   state_validator_type_dep: CellDep;
+
+  l2_finalized_period: BigInt;
 }
