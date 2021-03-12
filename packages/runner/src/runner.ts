@@ -124,7 +124,7 @@ export class Runner {
         this.lockGenerator = new poaGeneratorModule.PoAGenerator(
           this._ckbAddress(),
           this.indexer,
-          [config.deploymentConfig.poa_state_dep!],
+          [config.deployment_config.poa_state_dep!],
           (message) => {
             this.logger("debug", `[aggregator] ${message}`);
           }
@@ -161,7 +161,7 @@ export class Runner {
   }
 
   _deploymentConfig(): DeploymentConfig {
-    return this.config.deploymentConfig;
+    return this.config.deployment_config;
   }
 
   _rollupCellQueryOptions(): QueryOptions {
