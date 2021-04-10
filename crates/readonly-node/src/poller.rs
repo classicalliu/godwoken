@@ -14,7 +14,16 @@ use gw_chain::{
     chain::{Chain, L1Action, L1ActionContext, SyncParam},
     next_block_context::NextBlockContext,
 };
+use gw_common::state::State;
+use gw_generator::backend_manage::SUDT_VALIDATOR_CODE_HASH;
+use gw_generator::traits::CodeStore;
 use gw_jsonrpc_types::ckb_jsonrpc_types::{BlockNumber, HeaderView, TransactionWithStatus, Uint32};
+use gw_types::{
+    packed::{
+        BlockInfo, RawL2Transaction, SUDTArgs, SUDTArgsUnion, SUDTQuery, SUDTTransfer, Script,
+    },
+    prelude::*,
+};
 use gw_types::{
     packed::{DepositionLockArgs, DepositionRequest, HeaderInfo, L2Block},
     prelude::*,
@@ -208,6 +217,7 @@ impl ChainUpdater {
         Ok(())
     }
 
+    // async fn insert_to_sql(pool: & mut PgPool, _chain: Arc<RwLock<Chain>>, l1_transaction: &Transaction) -> anyhow::Result<()> {
     async fn insert_to_sql(&self, l1_transaction: &Transaction) -> anyhow::Result<()> {
         let witness = l1_transaction
             .witnesses()
@@ -222,21 +232,53 @@ impl ChainUpdater {
         let number: u64 = l2_block.raw().number().unpack();
         let hash: H256 = blake2b_256(l2_block.raw().as_slice()).into();
         let epoch_time: u64 = l2_block.raw().timestamp().unpack();
-        // TODO: this is just a proof of concept work now, we need to fill in more data
-        sqlx::query("INSERT INTO blocks (number, hash, parent_hash, logs_bloom, gas_limit, gas_used, timestamp, miner, size) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)")
-            .bind(number as i64)
-            .bind(format!("{:#x}", hash))
-            .bind("0x0000000000000000000000000000000000000000000000000000000000000000")
-            .bind("")
-            .bind(0i64)
-            .bind(0i64)
-            .bind(sqlx::types::chrono::NaiveDateTime::from_timestamp(epoch_time as i64, 0))
-            .bind(format!("{}", l2_block.raw().aggregator_id()))
-            .bind(l2_block.as_slice().len() as i64)
-            .execute(&self.pool).await?;
+        let row: (i64,) = sqlx::query_as("SELECT number FROM blocks ORDER BY number DESC LIMIT 1")
+            .fetch_one(&self.pool)
+            .await?;
+        println!("current_block_number: {}", row.0);
+        if number == (row.0 + 1) as u64 {
+            let mut tx = self.pool.begin().await?;
+            // block
+            sqlx::query("INSERT INTO blocks (number, hash, parent_hash, logs_bloom, gas_limit, gas_used, timestamp, miner, size) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)")
+             .bind(number as i64)
+             .bind(format!("{:#x}", hash))
+             .bind("0x0000000000000000000000000000000000000000000000000000000000000000")
+             .bind("")
+             .bind(0i64)
+             .bind(0i64)
+             .bind(sqlx::types::chrono::NaiveDateTime::from_timestamp(epoch_time as i64, 0))
+             .bind(format!("{}", l2_block.raw().aggregator_id()))
+             .bind(l2_block.as_slice().len() as i64)
+             .execute(&self.pool).await?;
+            let chain = self.chain.read();
+            let mut web3_compatible_l2_transaction_amount = 0;
+            // l2 transactions
+            let l2_transactions = l2_block.transactions();
+            for l2_transaction in l2_transactions {
+                let to_id = l2_transaction.raw().to_id().unpack();
+                let script_hash = &chain.store.get_script_hash(to_id)?;
+                let script = &chain.store.get_script(&script_hash).unwrap();
+                if script.code_hash().as_slice() == godwoken_polyjuice::CODE_HASH_VALIDATOR {
+                    // TODO resolve polyjuice args
+                    web3_compatible_l2_transaction_amount += 1;
+                } else if script.code_hash().as_slice() == SUDT_VALIDATOR_CODE_HASH.as_slice() {
+                    let sudt_args = SUDTArgs::from_slice(l2_transaction.raw().args().as_slice())?;
+                    match sudt_args.to_enum() {
+                        SUDTArgsUnion::SUDTTransfer(sudt_transfer) => {
+                            let to: u32 = sudt_transfer.to().unpack();
+                            let amount: u128 = sudt_transfer.amount().unpack();
+                            let fee: u128 = sudt_transfer.fee().unpack();
+                        }
+                        SUDTArgsUnion::SUDTQuery(sudt_query) => {}
+                    }
+                    web3_compatible_l2_transaction_amount += 1;
+                }
+            }
+            // l2_block.transactions().into_iter().filter(fn)
+            // logs
+        }
         Ok(())
     }
-
     async fn extract_deposition_requests(
         &self,
         tx: &Transaction,

@@ -7,6 +7,7 @@ mod indexer_types;
 mod jsonrpc_server;
 mod poller;
 mod types;
+mod web3;
 
 use crate::{
     jsonrpc_server::start_jsonrpc_server,
