@@ -1,5 +1,5 @@
 use rust_decimal::Decimal;
-use sqlx::types::chrono::{DateTime, Utc, NaiveDateTime};
+use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 #[derive(sqlx::FromRow)]
 pub struct Block {
     pub number: Decimal,

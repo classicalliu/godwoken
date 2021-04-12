@@ -37,7 +37,7 @@ use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::sync::Arc;
 use std::time::SystemTime;
 
-async fn insert_to_sql(
+pub async fn insert_to_sql(
     pool: &PgPool,
     chain: Arc<RwLock<Chain>>,
     l1_transaction: &Transaction,
