@@ -203,7 +203,7 @@ impl ChainUpdater {
         };
         self.chain.write().sync(sync_param)?;
 
-        sql_indexer::insert_to_sql(self.pool, self.chain, tx).await?;
+        sql_indexer::insert_to_sql(&self.pool, &self.chain, &tx).await?;
         Ok(())
     }
 

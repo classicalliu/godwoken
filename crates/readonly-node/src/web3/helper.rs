@@ -5,7 +5,7 @@ pub struct PolyjuiceArgs {
     pub gas_limit: u64,
     pub gas_price: u128,
     pub value: u128,
-    pub input: Vec<u8>,
+    pub input: Option<Vec<u8>>,
 }
 
 impl PolyjuiceArgs {
@@ -15,14 +15,14 @@ impl PolyjuiceArgs {
         let gas_limit = 0u64;
         let gas_price = 0u128;
         let value = 0u128;
-        let input: Vec<u8> = vec![1, 23];
+        let input: Vec<u8> = vec![1, 2, 3, 4];
         Ok(Self {
             is_create: is_create,
             is_static: is_static,
             gas_limit: gas_limit,
             gas_price: gas_price,
             value: value,
-            input: input,
+            input: Some(input),
         })
     }
 }

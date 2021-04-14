@@ -1,6 +1,6 @@
 use rust_decimal::Decimal;
-use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
-#[derive(sqlx::FromRow)]
+use sqlx::types::chrono::{DateTime, Utc};
+#[derive(sqlx::FromRow, Debug)]
 pub struct Block {
     pub number: Decimal,
     pub hash: String,
@@ -10,10 +10,10 @@ pub struct Block {
     pub gas_used: Decimal,
     pub miner: String,
     pub size: Decimal,
-    pub timestamp: NativeDateTime,
+    pub timestamp: DateTime<Utc>,
 }
 
-#[derive(sqlx::FromRow)]
+#[derive(sqlx::FromRow, Debug)]
 pub struct Transaction {
     pub hash: String,
     pub block_number: Decimal,
@@ -25,7 +25,7 @@ pub struct Transaction {
     pub nonce: Decimal,
     pub gas_limit: Decimal,
     pub gas_price: Decimal,
-    pub input: String,
+    pub input: Option<String>,
     pub v: String,
     pub r: String,
     pub s: String,
@@ -36,7 +36,7 @@ pub struct Transaction {
     pub status: bool,
 }
 
-#[derive(sqlx::FromRow)]
+#[derive(sqlx::FromRow, Debug)]
 pub struct Log {
     pub transaction_id: i64,
     pub transaction_hash: String,
