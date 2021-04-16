@@ -35,7 +35,7 @@ rust_decimal = "1.10.3"
 
 ckb-hash = "0.37.0"
 ckb-types = "0.37.0"
-godwoken-polyjuice = "0.1.4"
+godwoken-polyjuice = "0.0.6"
 faster-hex = "0.5.0"
 gw-chain = { path = "../chain" }
 gw-common = { path = "../common" }

@@ -35,10 +35,14 @@ pub async fn insert_to_sql(
 ) -> anyhow::Result<()> {
     let l2_block = extract_l2_block(l1_transaction)?;
     let number: u64 = l2_block.raw().number().unpack();
-    let row: Option<(i64,)> =
+    let row: Option<(Decimal,)> =
         sqlx::query_as("SELECT number FROM blocks ORDER BY number DESC LIMIT 1")
             .fetch_optional(pool)
             .await?;
+    let row: Option<(i64,)> = match row {
+        Some(s) => Some((i64::from_str(&s.0.to_string()).unwrap(),)),
+        None => None,
+    };
     debug!("current_block_number: {:?}", row);
     if row.is_none() || number == (row.unwrap().0 + 1) as u64 {
         let web3_transactions = filter_web3_transactions(chain, l2_block.clone())?;
@@ -58,7 +62,7 @@ pub async fn insert_to_sql(
             .execute(&mut tx).await?;
         for web3_tx in web3_transactions {
             println!("web3_tx: {:?}", web3_tx);
-            sqlx::query("INSERT INTO transactions 
+            match sqlx::query("INSERT INTO transactions
             (hash, block_number, block_hash, transaction_index, from_address, to_address, value, nonce, gas_limit, gas_price, input, v, r, s, cumulative_gas_used, gas_used, logs_bloom, contract_address, status) 
             VALUES 
             ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)")
@@ -82,7 +86,12 @@ pub async fn insert_to_sql(
             .bind(web3_tx.contract_address)
             .bind(web3_tx.status)
             .execute(&mut tx)
-            .await?;
+            .await {
+                Ok(_s) => (),
+                Err(e) => {
+                    panic!("insert web3 transaction error: {:?}", e)
+                },
+            };
         }
         tx.commit().await.unwrap()
     }
@@ -118,7 +127,10 @@ fn filter_web3_transactions(
         // extract to_id corresponding script, check code_hash is either polyjuice contract code_hash or sudt contract code_hash
         let to_id = l2_transaction.raw().to_id().unpack();
         let to_script_hash = &chain.store.get_script_hash(to_id)?;
-        let to_script = &chain.store.get_script(&to_script_hash).unwrap();
+        let to_script = match chain.store.get_script(&to_script_hash) {
+            Some(s) => s,
+            None => continue,
+        };
         if to_script.code_hash().as_slice() == godwoken_polyjuice::CODE_HASH_VALIDATOR {
             let tx_hash: H256 = blake2b_256(l2_transaction.raw().as_slice()).into();
             println!("tx_hash: {}", tx_hash);
@@ -215,7 +227,13 @@ fn filter_web3_transactions(
             && to_script.code_hash().as_slice() == SUDT_VALIDATOR_CODE_HASH.as_slice()
         {
             // deal with CKB transfer
-            let sudt_args = SUDTArgs::from_slice(l2_transaction.raw().args().as_slice())?;
+            let sudt_args = match SUDTArgs::from_slice(l2_transaction.raw().args().as_slice()) {
+                Ok(s) => s,
+                Err(e) => {
+                    println!("SUDArgs error: {:?}", e);
+                    continue;
+                },
+            };
             match sudt_args.to_enum() {
                 SUDTArgsUnion::SUDTTransfer(sudt_transfer) => {
                     let to: u32 = sudt_transfer.to().unpack();

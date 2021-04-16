@@ -1338,7 +1338,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "ckb-types",
- "godwoken-polyjuice 0.0.6",
+ "godwoken-polyjuice",
  "gw-chain",
  "gw-common",
  "gw-config",
@@ -1358,19 +1358,6 @@ name = "godwoken-polyjuice"
 version = "0.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a17ceff13e16f2bcd7eb40bb2f1e3ef7d1483ddef9217bf38ab2bf00b2ce6f6"
-dependencies = [
- "blake2b-rs 0.1.5",
- "faster-hex 0.4.1",
- "includedir",
- "includedir_codegen",
- "phf",
-]
-
-[[package]]
-name = "godwoken-polyjuice"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f848e399c71c5a3ab546d2c34c6d61009beada9fecdfd4fff0b59c06b59735a8"
 dependencies = [
  "blake2b-rs 0.1.5",
  "faster-hex 0.4.1",
@@ -1473,7 +1460,7 @@ dependencies = [
  "env_logger",
  "faster-hex 0.5.0",
  "futures 0.3.13",
- "godwoken-polyjuice 0.1.4",
+ "godwoken-polyjuice",
  "gw-chain",
  "gw-common",
  "gw-config",
