@@ -39,12 +39,8 @@ pub async fn insert_to_sql(
         sqlx::query_as("SELECT number FROM blocks ORDER BY number DESC LIMIT 1")
             .fetch_optional(pool)
             .await?;
-    let row: Option<(i64,)> = match row {
-        Some(s) => Some((i64::from_str(&s.0.to_string()).unwrap(),)),
-        None => None,
-    };
-    debug!("current_block_number: {:?}", row);
-    if row.is_none() || number == (row.unwrap().0 + 1) as u64 {
+    info!("The latest block number in database: {:?}, current syncing block number: {}", row, number);
+    if row.is_none() || Decimal::from(number) == row.unwrap().0 + Decimal::from(1) {
         let web3_transactions = filter_web3_transactions(chain, l2_block.clone())?;
         let web3_block = build_web3_block(&l2_block, &web3_transactions)?;
         // let web3_logs = build_web3_logs(&l2_block, &web3_transactions);
