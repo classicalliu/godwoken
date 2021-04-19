@@ -209,7 +209,7 @@ fn filter_web3_transactions(
             && to_script.code_hash().as_slice() == SUDT_VALIDATOR_CODE_HASH.as_slice()
         {
             // deal with CKB transfer
-            let sudt_args = match SUDTArgs::from_slice(l2_transaction.raw().args().as_slice()) {
+            let sudt_args = match SUDTArgs::from_slice(l2_transaction.raw().args().raw_data().as_ref()) {
                 Ok(s) => s,
                 Err(e) => {
                     println!("SUDArgs error: {:?}", e);
@@ -218,10 +218,65 @@ fn filter_web3_transactions(
             };
             match sudt_args.to_enum() {
                 SUDTArgsUnion::SUDTTransfer(sudt_transfer) => {
-                    let to: u32 = sudt_transfer.to().unpack();
+                    let to_id: u32 = sudt_transfer.to().unpack();
                     let amount: u128 = sudt_transfer.amount().unpack();
                     let fee: u128 = sudt_transfer.fee().unpack();
                     let tx_hash: H256 = blake2b_256(l2_transaction.raw().as_slice()).into();
+
+                    let to_script_hash = &chain.store.get_script_hash(to_id)?;
+                    let to_script = match chain.store.get_script(&to_script_hash) {
+                        Some(s) => s,
+                        None => continue,
+                    };
+
+                    let from_id = l2_transaction.raw().from_id().unpack();
+                    let from_address = {
+                        let from_script_hash = &chain.store.get_script_hash(from_id)?;
+                        let from_script = &chain.store.get_script(&from_script_hash).unwrap();
+                        from_script.args()
+                    };
+
+                    let to_address = format!("{:#x}", to_script.args());
+                    let value = amount;
+                    let gas_limit = Decimal::from(0);
+                    let gas_price = Decimal::from(0);
+
+                    let nonce = {
+                        let nonce: u32 = l2_transaction.raw().nonce().unpack();
+                        Decimal::from(nonce)
+                    };
+
+                    let input = "0x".to_owned();
+
+                    let signature: [u8; 65] = l2_transaction.signature().unpack();
+                    let r = format!("0x{}", faster_hex::hex_string(&signature[0..31])?);
+                    let s = format!("0x{}", faster_hex::hex_string(&signature[32..63])?);
+                    let v = format!("0x{}", faster_hex::hex_string(&[signature[64]])?);
+
+                    let web3_transaction = Web3Transaction {
+                        hash: format!("{:#x}", tx_hash),
+                        transaction_index: tx_index as i32,
+                        block_number: Decimal::from(block_number),
+                        block_hash: format!("{:#x}", block_hash),
+                        from_address: format!("{:#x}", from_address),
+                        to_address: Some(to_address),
+                        value: Decimal::from(value),
+                        nonce: nonce,
+                        gas_limit: gas_limit,
+                        gas_price: gas_price,
+                        input: Some(input),
+                        r: r,
+                        s: s,
+                        v: v,
+                        cumulative_gas_used: Decimal::from(0),
+                        gas_used: Decimal::from(0),
+                        logs_bloom: String::from("0x"),
+                        contract_address: None,
+                        status: true,
+                    };
+
+                    println!("web3 transaction: {:?}", web3_transaction);
+                    web3_transactions.push(web3_transaction);
                 }
                 SUDTArgsUnion::SUDTQuery(sudt_query) => {}
             }
