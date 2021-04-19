@@ -23,7 +23,7 @@ use gw_types::{
     prelude::*,
 };
 use parking_lot::RwLock;
-use rust_decimal::prelude::*;
+use rust_decimal::Decimal;
 use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -39,10 +39,13 @@ pub async fn insert_to_sql(
         sqlx::query_as("SELECT number FROM blocks ORDER BY number DESC LIMIT 1")
             .fetch_optional(pool)
             .await?;
-    info!("The latest block number in database: {:?}, current syncing block number: {}", row, number);
+    info!(
+        "The latest block number in database: {:?}, current syncing block number: {}",
+        row, number
+    );
     if row.is_none() || Decimal::from(number) == row.unwrap().0 + Decimal::from(1) {
         let web3_transactions = filter_web3_transactions(chain, l2_block.clone())?;
-        let web3_block = build_web3_block(&l2_block, &web3_transactions)?;
+        let web3_block = build_web3_block(&pool, &l2_block, &web3_transactions).await?;
         // let web3_logs = build_web3_logs(&l2_block, &web3_transactions);
         let mut tx = pool.begin().await?;
         sqlx::query("INSERT INTO blocks (number, hash, parent_hash, logs_bloom, gas_limit, gas_used, timestamp, miner, size) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)")
@@ -138,18 +141,16 @@ fn filter_web3_transactions(
                 from_script.args()
             };
             println!("Check from_address: {:#x}", from_address);
-            let polyjuice_args = PolyjuiceArgs::decode(l2_transaction.raw().args().as_slice())?;
+            let l2_tx_args = l2_transaction.raw().args();
+            let polyjuice_args = PolyjuiceArgs::decode(l2_tx_args.raw_data().as_ref())?;
             // to_address is null if it's a contract deployment transaction
             let to_address = if polyjuice_args.is_create {
                 None
             } else {
-                let to_address_hex = format!("{:#x}", to_script.args());
-                Some(to_address_hex)
+                let address = String::from("0x000000000000000000000000000000000000000f");
+                Some(address)
             };
             println!("Check to_address: {:?}", to_address);
-            let gas_limit = Decimal::from(polyjuice_args.gas_limit);
-            let gas_price = Decimal::from_u128(polyjuice_args.gas_price).unwrap();
-            let value = Decimal::from_u128(polyjuice_args.value).unwrap();
             let nonce = {
                 let nonce: u32 = l2_transaction.raw().nonce().unpack();
                 Decimal::from(nonce)
@@ -166,30 +167,15 @@ fn filter_web3_transactions(
                 None => None,
             };
 
-            println!("Check1");
             let signature: [u8; 65] = l2_transaction.signature().unpack();
-            let r = faster_hex::hex_string(&signature[0..31])?;
-            let s = faster_hex::hex_string(&signature[32..63])?;
-            let v = faster_hex::hex_string(&[signature[64]])?;
-            println!("Check2");
+            let r = format!("0x{}", faster_hex::hex_string(&signature[0..31])?);
+            let s = format!("0x{}", faster_hex::hex_string(&signature[32..63])?);
+            let v = format!("0x{}", faster_hex::hex_string(&[signature[64]])?);
             let contract_address = if polyjuice_args.is_create {
-                /*
-                   https://github.com/nervosnetwork/godwoken-polyjuice/blob/v0.1.4/c/polyjuice.h#L705
-                   create account id
-                   Include:
-                   - [ 4 bytes] sudt id
-                   - [ 4 bytes] sender account id
-                   - [ 4 bytes] sender nonce (NOTE: only use first 4 bytes (u32))
-                */
-                let mut new_account_script_args = vec![0u8; 12];
-                let sudt_id = u32::to_le_bytes(CKB_SUDT_ACCOUNT_ID);
-                let from_id = u32::to_le_bytes(from_id);
-                let nonce = u32::to_le_bytes(l2_transaction.raw().nonce().unpack());
-                new_account_script_args[0..4].copy_from_slice(&sudt_id[..]);
-                new_account_script_args[4..8].copy_from_slice(&from_id[..]);
-                new_account_script_args[8..12].copy_from_slice(&nonce[..]);
-                let contract_address = faster_hex::hex_string(&&new_account_script_args[..])?;
-                Some(contract_address)
+                // TODO tx-receipt need return newly created account_id to contruct contract_address
+                // let address = account_id_to_eth_address(id, false);
+                let address = String::from("0x000000000000000000000000000000000000000f");
+                Some(address)
             } else {
                 None
             };
@@ -201,17 +187,17 @@ fn filter_web3_transactions(
                 block_hash: format!("{:#x}", block_hash),
                 from_address: format!("{:#x}", from_address),
                 to_address: to_address,
-                value: value,
+                value: Decimal::from(polyjuice_args.value),
                 nonce: nonce,
-                gas_limit: gas_limit,
-                gas_price: gas_price,
+                gas_limit: Decimal::from(0),
+                gas_price: Decimal::from(0),
                 input: input,
                 r: r,
                 s: s,
                 v: v,
                 cumulative_gas_used: Decimal::from(0),
                 gas_used: Decimal::from(0),
-                logs_bloom: String::from(""),
+                logs_bloom: String::from("0x"),
                 contract_address: contract_address,
                 status: true,
             };
@@ -228,7 +214,7 @@ fn filter_web3_transactions(
                 Err(e) => {
                     println!("SUDArgs error: {:?}", e);
                     continue;
-                },
+                }
             };
             match sudt_args.to_enum() {
                 SUDTArgsUnion::SUDTTransfer(sudt_transfer) => {
@@ -245,20 +231,34 @@ fn filter_web3_transactions(
     Ok(web3_transactions)
 }
 
-fn build_web3_block(
+async fn build_web3_block(
+    pool: &PgPool,
     l2_block: &L2Block,
     web3_transactions: &Vec<Web3Transaction>,
 ) -> anyhow::Result<Web3Block> {
     let block_number = l2_block.raw().number().unpack();
     let block_hash: H256 = blake2b_256(l2_block.raw().as_slice()).into();
+    let parent_hash = {
+        if block_number == 0 {
+            String::from("0x0000000000000000000000000000000000000000000000000000000000000000")
+        } else {
+            let row: Option<(String,)> =
+                sqlx::query_as("SELECT hash FROM blocks WHERE number = $1")
+                    .bind(Decimal::from(block_number - 1))
+                    .fetch_optional(pool)
+                    .await?;
+            match row {
+                Some(block) => block.0,
+                None => panic!("No parent hash found!"),
+            }
+        }
+    };
     let epoch_time: u64 = l2_block.raw().timestamp().unpack();
     let web3_block = Web3Block {
         number: Decimal::from(block_number),
         hash: format!("{:#x}", block_hash),
         // TODO update parent_hash
-        parent_hash: String::from(
-            "0x0000000000000000000000000000000000000000000000000000000000000000",
-        ),
+        parent_hash: parent_hash,
         logs_bloom: String::from(""),
         gas_limit: Decimal::from(0),
         // gas_used: last_web3_tx.cumulative_gas_used,
