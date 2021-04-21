@@ -138,9 +138,9 @@ fn filter_web3_transactions(
             let from_address = {
                 let from_script_hash = &chain.store.get_script_hash(from_id)?;
                 let from_script = &chain.store.get_script(&from_script_hash).unwrap();
-                from_script.args()
+                from_script.args().raw_data()
             };
-            println!("Check from_address: {:#x}", from_address);
+            println!("Check from_address: 0x{:#x}", from_address);
             let l2_tx_args = l2_transaction.raw().args();
             let polyjuice_args = PolyjuiceArgs::decode(l2_tx_args.raw_data().as_ref())?;
             // to_address is null if it's a contract deployment transaction
@@ -185,7 +185,7 @@ fn filter_web3_transactions(
                 transaction_index: tx_index as i32,
                 block_number: Decimal::from(block_number),
                 block_hash: format!("{:#x}", block_hash),
-                from_address: format!("{:#x}", from_address),
+                from_address: format!("0x{:#x}", from_address),
                 to_address: to_address,
                 value: Decimal::from(polyjuice_args.value),
                 nonce: nonce,
@@ -233,7 +233,7 @@ fn filter_web3_transactions(
                     let from_address = {
                         let from_script_hash = &chain.store.get_script_hash(from_id)?;
                         let from_script = &chain.store.get_script(&from_script_hash).unwrap();
-                        from_script.args()
+                        from_script.args().raw_data()
                     };
 
                     let to_address = format!("{:#x}", to_script.args());
