@@ -86,7 +86,7 @@ impl Secp256k1Eth {
         signature: Signature,
         message: H256,
     ) -> Result<bool, LockAlgorithmError> {
-        if lock_args.len() != 56 {
+        if lock_args.len() != 52 {
             return Err(LockAlgorithmError::InvalidLockArgs);
         }
 
