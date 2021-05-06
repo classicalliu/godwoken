@@ -67,7 +67,7 @@ async fn poll_loop(
             let raw_header = block.header().raw();
             let event = if raw_header.parent_hash().as_slice() == tip_hash.as_slice() {
                 // received new layer1 block
-                log::info!("received new layer1 block {}, {:?}", tip_number, tip_hash);
+                log::info!("received new layer1 block {}, 0x{:?}", tip_number, tip_hash);
                 ChainEvent::NewBlock {
                     block: block.clone(),
                 }

@@ -295,6 +295,14 @@ impl Web3Indexer {
                                 } => {
                                     // TODO: SudtTransfer happened in polyjuice contract will be include in web3 events later.
                                 }
+                                GwLog::SudtPayFee {
+                                    sudt_id: _,
+                                    from_id: _,
+                                    block_producer_id: _,
+                                    amount: _,
+                                } => {
+                                    // TODO: 
+                                }
                             }
                         }
                     }
