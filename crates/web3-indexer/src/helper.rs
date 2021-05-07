@@ -11,7 +11,6 @@ pub const GW_LOG_POLYJUICE_USER: u8 = 0x3;
 #[derive(Default, Debug)]
 pub struct PolyjuiceArgs {
     pub is_create: bool,
-    // pub is_static: bool,
     pub gas_limit: u64,
     pub gas_price: u128,
     pub value: u128,
@@ -19,10 +18,9 @@ pub struct PolyjuiceArgs {
 }
 
 impl PolyjuiceArgs {
+    // https://github.com/nervosnetwork/godwoken-polyjuice/blob/v0.6.0-rc1/polyjuice-tests/src/helper.rs#L322
     pub fn decode(args: &[u8]) -> anyhow::Result<Self> {
-        // https://github.com/nervosnetwork/godwoken-polyjuice/blob/4c9f13d7b89c4e6b833fd90ca68e972d2a7b60f0/polyjuice-tests/src/helper.rs#L183
         let is_create = args[7] == 3u8;
-        // let is_static = args[1] == 1u8;
         let gas_limit = u64::from_le_bytes(args[8..16].try_into()?);
         let gas_price = u128::from_le_bytes(args[16..32].try_into()?);
         let value = u128::from_be_bytes(args[32..48].try_into()?);
@@ -39,16 +37,9 @@ impl PolyjuiceArgs {
     }
 }
 
-// pub fn account_id_to_eth_address(id: u32) -> Vec<u8> {
-//     let mut data = vec![0u8; 20];
-//     data[0..4].copy_from_slice(&id.to_le_bytes()[..]);
-//     data
-// }
-
 pub fn account_id_to_eth_address(account_script_hash: H256, id: u32, ethabi: bool) -> Vec<u8> {
     let offset = if ethabi { 12 } else { 0 };
     let mut data = vec![0u8; offset + 20];
-    // let account_script_hash = state.get_script_hash(id).unwrap();
     data[offset..offset + 16].copy_from_slice(&account_script_hash.as_slice()[0..16]);
     data[offset + 16..offset + 20].copy_from_slice(&id.to_le_bytes()[..]);
     data
@@ -128,7 +119,10 @@ pub fn parse_log(item: &LogItem) -> Result<GwLog> {
         }
         GW_LOG_POLYJUICE_SYSTEM => {
             if data.len() != (8 + 8 + 4 + 4 + 4) {
-                return Err(anyhow!("invalid system log raw data length: {}", data.len()));
+                return Err(anyhow!(
+                    "invalid system log raw data length: {}",
+                    data.len()
+                ));
             }
 
             let mut u64_bytes = [0u8; 8];
@@ -161,14 +155,14 @@ pub fn parse_log(item: &LogItem) -> Result<GwLog> {
             let mut log_data = vec![0u8; data_size as usize];
             log_data.copy_from_slice(&data[offset..offset + (data_size as usize)]);
             offset += data_size as usize;
-            println!("data_size: {}", data_size);
+            log::debug!("data_size: {}", data_size);
 
             let mut topics_count_bytes = [0u8; 4];
             topics_count_bytes.copy_from_slice(&data[offset..offset + 4]);
             offset += 4;
             let topics_count: u32 = u32::from_le_bytes(topics_count_bytes);
             let mut topics = Vec::new();
-            println!("topics_count: {}", topics_count);
+            log::debug!("topics_count: {}", topics_count);
             for _ in 0..topics_count {
                 let mut topic = [0u8; 32];
                 topic.copy_from_slice(&data[offset..offset + 32]);
@@ -188,6 +182,6 @@ pub fn parse_log(item: &LogItem) -> Result<GwLog> {
                 topics,
             })
         }
-        _ => Err(anyhow!("invalid log service flag: {}", service_flag))
+        _ => Err(anyhow!("invalid log service flag: {}", service_flag)),
     }
 }

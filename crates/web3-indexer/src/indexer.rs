@@ -249,9 +249,13 @@ impl Web3Indexer {
                                     tx_gas_used = Decimal::from(gas_used);
                                     cumulative_gas_used += tx_gas_used;
                                     if polyjuice_args.is_create && created_id != u32::MAX {
-                                        let created_script_hash = get_script_hash(store.clone(), created_id).await?;
-                                        let contract_address =
-                                            account_id_to_eth_address(created_script_hash, created_id, false);
+                                        let created_script_hash =
+                                            get_script_hash(store.clone(), created_id).await?;
+                                        let contract_address = account_id_to_eth_address(
+                                            created_script_hash,
+                                            created_id,
+                                            false,
+                                        );
                                         contract_address_hex = Some(format!(
                                             "0x{}",
                                             faster_hex::hex_string(&contract_address[..])?
@@ -302,7 +306,7 @@ impl Web3Indexer {
                                     block_producer_id: _,
                                     amount: _,
                                 } => {
-                                    // TODO: 
+                                    // TODO:
                                 }
                             }
                         }
@@ -465,7 +469,8 @@ impl Web3Indexer {
         }
         let block_producer_id: u32 = l2_block.raw().block_producer_id().unpack();
         let block_producer_script_hash = get_script_hash(store.clone(), block_producer_id).await?;
-        let miner_address = account_id_to_eth_address(block_producer_script_hash, block_producer_id, false);
+        let miner_address =
+            account_id_to_eth_address(block_producer_script_hash, block_producer_id, false);
         let miner_address_hex = format!("0x{}", faster_hex::hex_string(&miner_address[..])?);
         let epoch_time_as_millis: u64 = l2_block.raw().timestamp().unpack();
         let timestamp =
