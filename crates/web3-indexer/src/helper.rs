@@ -45,10 +45,10 @@ impl PolyjuiceArgs {
 //     data
 // }
 
-pub fn account_id_to_eth_address(state: &DummyState, id: u32, ethabi: bool) -> Vec<u8> {
+pub fn account_id_to_eth_address(account_script_hash: H256, id: u32, ethabi: bool) -> Vec<u8> {
     let offset = if ethabi { 12 } else { 0 };
     let mut data = vec![0u8; offset + 20];
-    let account_script_hash = state.get_script_hash(id).unwrap();
+    // let account_script_hash = state.get_script_hash(id).unwrap();
     data[offset..offset + 16].copy_from_slice(&account_script_hash.as_slice()[0..16]);
     data[offset + 16..offset + 20].copy_from_slice(&id.to_le_bytes()[..]);
     data
